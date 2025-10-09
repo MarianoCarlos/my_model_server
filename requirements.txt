@@ -1,9 +1,9 @@
 flask
-flask-socketio
 flask-cors
-eventlet
-opencv-python-headless  
+opencv-python-headless
 mediapipe
 numpy
 scikit-learn
 joblib
+eventlet==0.36.1
+flask-socketio==5.3.6
