@@ -1,26 +1,40 @@
-import gzip, joblib, cv2, mediapipe as mp, numpy as np
+import os, gzip, joblib, cv2, numpy as np
 from collections import deque, Counter
+
+# Disable matplotlib backend and font cache to save memory
+os.environ["MPLCONFIGDIR"] = "/tmp/matplotlib"
+os.environ["MPLBACKEND"] = "Agg"
 
 
 class GestureClassifier:
     def __init__(self, confidence=0.6):
-        self.min_conf = confidence
+        self.conf_threshold = confidence
+        self.model = self.scaler = self.encoder = None
+        self.hands = None
+        self.lazy_loaded = False
+        self._load_model()
+
+    def _load_model(self):
         print("📦 Loading compressed model...")
         with gzip.open("./model_compressed.p.gz", "rb") as f:
             model_dict = joblib.load(f)
-
         self.model = model_dict["model"]
         self.scaler = model_dict.get("scaler")
         self.encoder = model_dict.get("encoder")
-        print("✅ Model loaded.")
+        print("✅ Model loaded successfully.")
 
-        self.mp_hands = mp.solutions.hands
-        self.hands = self.mp_hands.Hands(
-            static_image_mode=False,
-            max_num_hands=2,
-            min_detection_confidence=confidence,
-            min_tracking_confidence=confidence,
-        )
+    def _load_mediapipe(self):
+        if not self.lazy_loaded:
+            import mediapipe as mp
+            self.mp_hands = mp.solutions.hands
+            self.hands = self.mp_hands.Hands(
+                static_image_mode=False,
+                max_num_hands=2,
+                min_detection_confidence=self.conf_threshold,
+                min_tracking_confidence=self.conf_threshold,
+            )
+            self.lazy_loaded = True
+            print("🤖 Mediapipe Hands loaded (lazy).")
 
     def preprocess(self, hand_lm):
         xs = [lm.x for lm in hand_lm.landmark]
@@ -39,6 +53,7 @@ class GestureClassifier:
         return norm
 
     def predict_single(self, frame):
+        self._load_mediapipe()
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         res = self.hands.process(rgb)
         if not res.multi_hand_landmarks:

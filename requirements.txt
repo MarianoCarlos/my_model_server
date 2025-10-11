@@ -1,9 +1,17 @@
-flask
-flask-cors
-opencv-python-headless
-mediapipe
-numpy
-scikit-learn
-joblib
-eventlet==0.36.1
+# --- Flask and Web ---
+flask==3.1.2
+flask-cors==6.0.1
 flask-socketio==5.3.6
+eventlet==0.36.1
+
+# --- Core AI / ML Stack ---
+numpy==1.26.4
+scikit-learn==1.5.1
+joblib==1.5.2
+
+# --- Computer Vision (Headless, lightweight) ---
+opencv-python-headless==4.11.0.86
+mediapipe==0.10.14
+
+# --- Optional Utilities ---
+protobuf==4.25.8
