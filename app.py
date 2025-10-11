@@ -10,6 +10,7 @@ from flask_cors import CORS
 app = Flask(__name__)
 CORS(app)
 
+# Detect environment
 ENV = os.getenv("ENV", "development")
 ALLOWED_ORIGINS = (
     ["https://www.insyncweb.site", "https://insync-omega.vercel.app"]
@@ -17,18 +18,16 @@ ALLOWED_ORIGINS = (
     else ["*"]
 )
 
-# --- Lazy import of SocketIO to save RAM ---
+# --- Lazy import of SocketIO to save memory ---
 try:
     from flask_socketio import SocketIO, emit
     import eventlet
-
     socketio = SocketIO(app, cors_allowed_origins=ALLOWED_ORIGINS, async_mode="eventlet")
 except Exception:
     socketio = None
 
-# --- Lazy import of classifier (loads Mediapipe later) ---
+# --- Lazy import of model classifier ---
 from inference_classifier import GestureClassifier
-
 classifier = GestureClassifier(confidence=0.6)
 recent_preds = deque(maxlen=8)
 
@@ -38,6 +37,12 @@ def decode_upload(file):
     return cv2.imdecode(arr, cv2.IMREAD_COLOR)
 
 
+# --- Health Check (for Render) ---
+@app.route("/healthz")
+def healthz():
+    return jsonify({"status": "ok"}), 200
+
+
 @app.route("/")
 def home():
     return jsonify({"message": "🖐 ASL backend running."})
@@ -45,8 +50,10 @@ def home():
 
 @app.route("/predict", methods=["POST"])
 def predict():
+    """Handle image upload for ASL prediction."""
     if "file" not in request.files:
         return jsonify({"error": "no file"}), 400
+
     frame = decode_upload(request.files["file"])
     if frame is None:
         return jsonify({"error": "invalid image"}), 400
@@ -55,13 +62,12 @@ def predict():
     recent_preds.append(label or "")
     smooth = Counter(recent_preds).most_common(1)[0][0]
 
-    print(f"🖐 Prediction: {smooth} ({conf*100:.1f}%)")
+    print(f"🖐 Prediction: {smooth} ({conf * 100:.1f}%)")
     return jsonify({"prediction": smooth, "confidence": conf})
 
 
-# --- Optional Socket.IO real-time prediction ---
+# --- Socket.IO for real-time video frames ---
 if socketio:
-
     @socketio.on("video_frame")
     def handle_video(data):
         frame64 = data.get("frame")
@@ -82,10 +88,13 @@ if socketio:
         emit("prediction", {"label": smooth, "confidence": conf})
 
 
+# --- Run server ---
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
     host = "0.0.0.0" if ENV == "production" else "127.0.0.1"
-    print(f"🚀 Server running at http://{host}:{port}")
+    print(f"🚀 Starting ASL backend on {host}:{port}")
+    print("📦 Waiting for first Mediapipe initialization...")
+
     if socketio:
         socketio.run(app, host=host, port=port)
     else:

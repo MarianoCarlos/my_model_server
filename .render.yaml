@@ -1,0 +1,16 @@
+services:
+    - type: web
+      name: my-model-server
+      env: python
+      plan: free
+      buildCommand: pip install -r requirements.txt
+      startCommand: python app.py
+      envVars:
+          - key: ENV
+            value: production
+          - key: PYTHON_VERSION
+            value: 3.10
+          - key: MPLCONFIGDIR
+            value: /tmp/matplotlib
+      healthCheckPath: /healthz
+      autoDeploy: true

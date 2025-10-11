@@ -1,5 +1,4 @@
 import os, gzip, joblib, cv2, numpy as np
-from collections import deque, Counter
 
 # Disable matplotlib backend and font cache to save memory
 os.environ["MPLCONFIGDIR"] = "/tmp/matplotlib"
