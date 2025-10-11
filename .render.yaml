@@ -1,16 +1,16 @@
 services:
     - type: web
-      name: my-model-server
+      name: asl-backend
       env: python
       plan: free
       buildCommand: pip install -r requirements.txt
       startCommand: python app.py
       envVars:
+          - key: PYTHON_VERSION
+            value: 3.10.11
+          - key: PORT
+            value: 10000
           - key: ENV
             value: production
-          - key: PYTHON_VERSION
-            value: 3.10
-          - key: MPLCONFIGDIR
-            value: /tmp/matplotlib
       healthCheckPath: /healthz
       autoDeploy: true

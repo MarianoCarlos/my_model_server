@@ -6,5 +6,5 @@ numpy==1.26.4
 scikit-learn==1.7.2
 joblib==1.5.2
 opencv-python-headless==4.11.0.86
-mediapipe==0.10.14
-protobuf==4.25.8
+mediapipe==0.10.5
+protobuf==3.20.3

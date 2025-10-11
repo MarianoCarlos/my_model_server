@@ -3,6 +3,10 @@ import os, gzip, joblib, cv2, numpy as np
 # Disable matplotlib backend and font cache to save memory
 os.environ["MPLCONFIGDIR"] = "/tmp/matplotlib"
 os.environ["MPLBACKEND"] = "Agg"
+os.environ["JAX_PLATFORMS"] = "cpu"
+os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
+os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.2"
+
 
 
 class GestureClassifier:
