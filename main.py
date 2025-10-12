@@ -1,102 +1,132 @@
-from fastapi import FastAPI, File, UploadFile, WebSocket
+from fastapi import FastAPI, File, UploadFile, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 import numpy as np
 import cv2
-import base64
+import traceback
 from inference_classifier import GestureClassifier
 
-app = FastAPI(title="ASL Interpreter API", version="1.2")
+# -------------------------------------------------------------
+# 🚀 FASTAPI APP CONFIG
+# -------------------------------------------------------------
+app = FastAPI(title="ASL Interpreter API", version="1.4")
 
-# ✅ Enable CORS for frontend (Next.js)
+# ✅ Allow frontend origins
+origins = [
+    "https://www.insyncweb.site",
+    "https://insync-omega.vercel.app",
+    "https://insyncweb.site",
+    "http://localhost",
+    "http://localhost:3000",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://www.insyncweb.site","https://insync-omega.vercel.app"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ✅ Load classifier
-classifier = GestureClassifier("./model_enhanced.p")
+# -------------------------------------------------------------
+# 🧠 LOAD CLASSIFIER MODEL
+# -------------------------------------------------------------
+try:
+    classifier = GestureClassifier("./model_enhanced.p")
+    print("✅ Model loaded successfully.")
+except Exception as e:
+    print("❌ Error loading model:", e)
+    classifier = None
 
-# 🧠 Global memory for stability tracking
+# -------------------------------------------------------------
+# ⚙️ GLOBAL VARIABLES
+# -------------------------------------------------------------
 last_prediction = None
 repeat_count = 0
 STABILITY_THRESHOLD = 3  # Require 3 identical frames before confirming
 
 
+# -------------------------------------------------------------
+# 🩺 HEALTH CHECK
+# -------------------------------------------------------------
+@app.get("/health")
+def health_check():
+    """Check if the API and model are loaded correctly."""
+    if classifier is None:
+        return {"status": "error", "message": "Model not loaded"}
+    try:
+        test_img = np.zeros((224, 224, 3), dtype=np.uint8)
+        _ = classifier.predict(test_img)
+        return {"status": "ok", "model_loaded": True}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+# -------------------------------------------------------------
+# 🏠 ROOT ROUTE
+# -------------------------------------------------------------
 @app.get("/")
 def root():
     return {"message": "ASL Interpreter API is running!"}
 
 
-# ✅ Predict from image upload (stable mode)
+# -------------------------------------------------------------
+# 🧠 IMAGE PREDICTION ENDPOINT
+# -------------------------------------------------------------
 @app.post("/predict")
 async def predict_image(file: UploadFile = File(...)):
+    """Handles single-frame image inference for ASL gestures."""
     global last_prediction, repeat_count
 
-    # Read and decode image
-    contents = await file.read()
-    nparr = np.frombuffer(contents, np.uint8)
-    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-
-    # Run inference
-    result, _ = classifier.predict(img)
-    if not result:
-        # Reset repeat count when no hands
-        repeat_count = 0
-        last_prediction = None
-        return {"prediction": None, "message": "No hands detected."}
-
-    # 🧩 Stability logic
-    if result == last_prediction:
-        repeat_count += 1
-    else:
-        last_prediction = result
-        repeat_count = 1  # new gesture starts counting
-
-    # Return only after N stable detections
-    if repeat_count >= STABILITY_THRESHOLD:
-        return {"prediction": result, "message": "Stable gesture detected"}
-    else:
-        return {"prediction": None, "message": "Waiting for stability"}
-
-
-# ✅ WebSocket endpoint (optional real-time use)
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    global last_prediction, repeat_count
-    await websocket.accept()
-    print("🟢 WebSocket client connected")
+    if classifier is None:
+        return {"error": "Model not loaded", "message": "Server error"}
 
     try:
-        while True:
-            # Receive Base64-encoded frame
-            data = await websocket.receive_text()
-            img_bytes = base64.b64decode(data)
-            nparr = np.frombuffer(img_bytes, np.uint8)
-            img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        # Read and decode uploaded frame
+        contents = await file.read()
+        nparr = np.frombuffer(contents, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
-            # Run inference
-            result, _ = classifier.predict(img)
+        if img is None:
+            raise ValueError("Invalid or unreadable image input")
 
-            if not result:
-                repeat_count = 0
-                last_prediction = None
-                await websocket.send_json({"prediction": None, "message": "No hands detected"})
-                continue
+        # Run inference
+        result, _ = classifier.predict(img)
 
-            if result == last_prediction:
-                repeat_count += 1
-            else:
-                last_prediction = result
-                repeat_count = 1
+        # Handle no-hand detection
+        if not result:
+            repeat_count = 0
+            last_prediction = None
+            return {"prediction": None, "message": "No hands detected."}
 
-            if repeat_count >= STABILITY_THRESHOLD:
-                await websocket.send_json({"prediction": result, "message": "Stable gesture detected"})
-            else:
-                await websocket.send_json({"prediction": None, "message": "Waiting for stability"})
+        # Apply stability logic
+        if result == last_prediction:
+            repeat_count += 1
+        else:
+            last_prediction = result
+            repeat_count = 1
+
+        # Return stable detection result
+        if repeat_count >= STABILITY_THRESHOLD:
+            return {"prediction": result, "message": "Stable gesture detected"}
+        else:
+            return {"prediction": None, "message": "Waiting for stability"}
 
     except Exception as e:
-        print("🔴 WebSocket disconnected:", e)
-        await websocket.close()
+        print("❌ Error during /predict:", traceback.format_exc())
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e), "message": "Internal Server Error"},
+        )
+
+
+# -------------------------------------------------------------
+# ⚠️ GLOBAL EXCEPTION HANDLER
+# -------------------------------------------------------------
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    print("⚠️ Global error caught:", traceback.format_exc())
+    return JSONResponse(
+        status_code=500,
+        content={"error": str(exc), "message": "Unexpected server error"},
+    )
