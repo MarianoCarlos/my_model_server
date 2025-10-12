@@ -10,7 +10,7 @@ app = FastAPI(title="ASL Interpreter API", version="1.2")
 # ✅ Enable CORS for frontend (Next.js)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["https://www.insyncweb.site","https://insync-omega.vercel.app"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
