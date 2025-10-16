@@ -1,7 +1,11 @@
 services:
     - type: web
-      name: asl-backend
+      name: asl-model-server
       env: python
       buildCommand: pip install -r requirements.txt
-      startCommand: uvicorn main:app --host 0.0.0.0 --port 10000
-      plan: free
+      startCommand: gunicorn main:app --workers 1 --threads 2 --timeout 60
+      envVars:
+          - key: MODEL_PATH
+            value: model_enhanced_compressed.joblib
+          - key: CORS_ORIGINS
+            value: https://www.insyncweb.site,https://insync-omega.vercel.app,http://localhost:3000

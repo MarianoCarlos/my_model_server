@@ -1,8 +1,8 @@
-fastapi
-uvicorn
+flask
+flask-cors
 opencv-python-headless
 mediapipe
 scikit-learn==1.6.1
 numpy
 joblib
-python-multipart
+gunicorn
